@@ -1,0 +1,34 @@
+name: PReview
+
+# Copy this into the repository you want previews for.
+on:
+  pull_request:
+    types: [labeled, unlabeled, opened, reopened, synchronize, closed]
+
+# One run per PR at a time; a newer push cancels an in-flight deploy.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write       # OIDC -> AWS
+  contents: read
+  pull-requests: write  # PR comment
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/PReviewDeployer
+          aws-region: us-east-2
+
+      - uses: deepakdinesh1123/PReview@main
+        with:
+          buildRoleARN: arn:aws:iam::123456789012:role/PReviewBuild
+          s3Path: s3://my-preview-artifacts/previews
+          port: "8080"
+          label: preview

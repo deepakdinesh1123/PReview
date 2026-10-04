@@ -1,0 +1,153 @@
+name: "PReview - Preview Environments on Lambda MicroVMs"
+description: "Label a pull request to deploy it to an AWS Lambda MicroVM and get a live link in the PR."
+author: "Deepak"
+
+branding:
+  icon: "eye"
+  color: "orange"
+
+inputs:
+  buildRoleARN:
+    description: "IAM role Lambda assumes to read the S3 artifact and build the MicroVM image"
+    required: true
+  s3Path:
+    description: "s3://bucket/prefix where build artifacts are uploaded"
+    required: true
+  baseImageARN:
+    description: "ARN of the Lambda-managed base MicroVM image"
+    required: false
+    default: "arn:aws:lambda:us-east-2:aws:microvm-image:al2023-1"
+  executionRoleARN:
+    description: "Optional IAM role the running MicroVM assumes"
+    required: false
+    default: ""
+  label:
+    description: "Pull request label that enables a preview"
+    required: false
+    default: "preview"
+  githubToken:
+    description: "Token used to post and update the pull request comment (needs pull-requests: write)"
+    required: false
+    default: ${{ github.token }}
+  appPath:
+    description: "Directory (relative to the workspace) containing the Dockerfile and sources"
+    required: false
+    default: "."
+  port:
+    description: "Port the application listens on inside the MicroVM"
+    required: false
+    default: "8080"
+  memory:
+    description: "Minimum memory in MiB"
+    required: false
+    default: "2048"
+  ttl:
+    description: "Maximum lifetime of a preview (e.g. 90m, 8h, infinite). Platform limit is 8h"
+    required: false
+    default: "8h"
+  idleDuration:
+    description: "Inactivity before the MicroVM is suspended (auto-resumes on the next request)"
+    required: false
+    default: "15m"
+  suspendedDuration:
+    description: "How long a suspended MicroVM is kept before termination"
+    required: false
+    default: "1h"
+  namePrefix:
+    description: "Prefix of every image name (scopes list/down to PReview-managed images)"
+    required: false
+    default: "preview"
+  ingressNetworkConnectors:
+    description: "Comma-separated ingress network connectors"
+    required: false
+    default: ""
+  egressNetworkConnectors:
+    description: "Comma-separated egress network connectors"
+    required: false
+    default: ""
+  debug:
+    description: "Enable debug logging"
+    required: false
+    default: "false"
+
+outputs:
+  live:
+    description: "Whether this run produced a live preview deployment"
+    value: ${{ steps.preview.outputs.live }}
+  url:
+    description: "The endpoint URL of the preview"
+    value: ${{ steps.preview.outputs.url }}
+  name:
+    description: "The deployment (image) name"
+    value: ${{ steps.preview.outputs.name }}
+  microvm_id:
+    description: "The ID of the running MicroVM"
+    value: ${{ steps.preview.outputs.microvm_id }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache: false
+
+    - name: Build preview CLI
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: go build -trimpath -o "${RUNNER_TEMP}/preview" ./cmd
+
+    - id: preview
+      name: Sync preview
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.githubToken }}
+        PREVIEW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        IN_BUILD_ROLE: ${{ inputs.buildRoleARN }}
+        IN_S3_PATH: ${{ inputs.s3Path }}
+        IN_BASE_IMAGE: ${{ inputs.baseImageARN }}
+        IN_EXEC_ROLE: ${{ inputs.executionRoleARN }}
+        IN_LABEL: ${{ inputs.label }}
+        IN_APP_PATH: ${{ inputs.appPath }}
+        IN_PORT: ${{ inputs.port }}
+        IN_MEMORY: ${{ inputs.memory }}
+        IN_TTL: ${{ inputs.ttl }}
+        IN_IDLE: ${{ inputs.idleDuration }}
+        IN_SUSPENDED: ${{ inputs.suspendedDuration }}
+        IN_PREFIX: ${{ inputs.namePrefix }}
+        IN_INGRESS: ${{ inputs.ingressNetworkConnectors }}
+        IN_EGRESS: ${{ inputs.egressNetworkConnectors }}
+        IN_DEBUG: ${{ inputs.debug }}
+      run: |
+        set -euo pipefail
+
+        # Inputs travel through env vars (never interpolated into the script)
+        # so a malicious PR title/branch cannot inject shell.
+        args=(github-sync
+          --build-role-arn "${IN_BUILD_ROLE}"
+          --s3-path "${IN_S3_PATH}"
+          --base-image-arn "${IN_BASE_IMAGE}"
+          --label "${IN_LABEL}"
+          --app-path "${GITHUB_WORKSPACE}/${IN_APP_PATH}"
+          --port "${IN_PORT}"
+          --memory "${IN_MEMORY}"
+          --ttl "${IN_TTL}"
+          --idle-duration "${IN_IDLE}"
+          --suspended-duration "${IN_SUSPENDED}"
+          --name-prefix "${IN_PREFIX}")
+
+        if [ -n "${IN_EXEC_ROLE}" ]; then args+=(--execution-role-arn "${IN_EXEC_ROLE}"); fi
+
+        IFS=',' read -r -a ingress <<< "${IN_INGRESS}"
+        for c in ${ingress[@]+"${ingress[@]}"}; do
+          if [ -n "${c}" ]; then args+=(--ingress-network-connector "${c}"); fi
+        done
+        IFS=',' read -r -a egress <<< "${IN_EGRESS}"
+        for c in ${egress[@]+"${egress[@]}"}; do
+          if [ -n "${c}" ]; then args+=(--egress-network-connector "${c}"); fi
+        done
+
+        cmd=("${RUNNER_TEMP}/preview")
+        if [ "${IN_DEBUG}" = "true" ]; then cmd+=(--debug); fi
+
+        "${cmd[@]}" "${args[@]}"
