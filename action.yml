@@ -87,15 +87,9 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: ${{ github.action_path }}/go.mod
-        cache: false
-
-    - name: Build preview CLI
+    - name: Ensure preview binary is executable
       shell: bash
-      working-directory: ${{ github.action_path }}
-      run: go build -trimpath -o "${RUNNER_TEMP}/preview" ./cmd
+      run: chmod +x "${{ github.action_path }}/dist/preview"
 
     - id: preview
       name: Sync preview
@@ -147,7 +141,7 @@ runs:
           if [ -n "${c}" ]; then args+=(--egress-network-connector "${c}"); fi
         done
 
-        cmd=("${RUNNER_TEMP}/preview")
+        cmd=("${{ github.action_path }}/dist/preview")
         if [ "${IN_DEBUG}" = "true" ]; then cmd+=(--debug); fi
 
         "${cmd[@]}" "${args[@]}"

@@ -36,7 +36,6 @@ resource "aws_iam_role" "builder" {
         Effect = "Allow"
         Principal = {
           Service = [
-            "lambdamicrovms.amazonaws.com",
             "lambda.amazonaws.com"
           ]
         }
@@ -187,4 +186,32 @@ output "build_role_arn" {
 output "s3_path" {
   description = "Add this to your preview.yml workflow (s3Path)"
   value       = "s3://${aws_s3_bucket.artifacts.id}/previews"
+}
+
+# 6. IAM User for GitHub Actions (since OIDC is not used)
+resource "aws_iam_user" "github_deployer" {
+  count = var.github_repository == "" ? 1 : 0
+  name  = "PReviewGitHubActionsUser"
+}
+
+resource "aws_iam_user_policy_attachment" "github_deployer_attach" {
+  count      = var.github_repository == "" ? 1 : 0
+  user       = aws_iam_user.github_deployer[0].name
+  policy_arn = aws_iam_policy.deployer_policy.arn
+}
+
+resource "aws_iam_access_key" "github_deployer_key" {
+  count = var.github_repository == "" ? 1 : 0
+  user  = aws_iam_user.github_deployer[0].name
+}
+
+output "aws_access_key_id" {
+  description = "AWS Access Key ID for GitHub Actions secrets (only if using Access Keys)"
+  value       = var.github_repository == "" ? aws_iam_access_key.github_deployer_key[0].id : ""
+}
+
+output "aws_secret_access_key" {
+  description = "AWS Secret Access Key for GitHub Actions secrets (only if using Access Keys)"
+  value       = var.github_repository == "" ? aws_iam_access_key.github_deployer_key[0].secret : ""
+  sensitive   = true
 }
