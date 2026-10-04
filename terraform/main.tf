@@ -82,18 +82,18 @@ resource "aws_iam_policy" "deployer_policy" {
       {
         Effect = "Allow"
         Action = [
-          "lambdamicrovms:CreateMicrovmImage",
-          "lambdamicrovms:UpdateMicrovmImage",
-          "lambdamicrovms:GetMicrovmImage",
-          "lambdamicrovms:ListMicrovmImages",
-          "lambdamicrovms:DeleteMicrovmImage",
-          "lambdamicrovms:RunMicrovm",
-          "lambdamicrovms:GetMicrovm",
-          "lambdamicrovms:ListMicrovms",
-          "lambdamicrovms:TerminateMicrovm",
-          "lambdamicrovms:CreateMicrovmAuthToken",
-          "lambdamicrovms:TagResource",
-          "lambdamicrovms:WaitMicrovmRunning"
+          "lambda:CreateMicrovmImage",
+          "lambda:UpdateMicrovmImage",
+          "lambda:GetMicrovmImage",
+          "lambda:ListMicrovmImages",
+          "lambda:DeleteMicrovmImage",
+          "lambda:RunMicrovm",
+          "lambda:GetMicrovm",
+          "lambda:ListMicrovms",
+          "lambda:TerminateMicrovm",
+          "lambda:CreateMicrovmAuthToken",
+          "lambda:TagResource",
+          "lambda:PassNetworkConnector"
         ]
         Resource = "*"
       },
