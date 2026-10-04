@@ -85,6 +85,7 @@ resource "aws_iam_policy" "deployer_policy" {
           "lambda:CreateMicrovmImage",
           "lambda:UpdateMicrovmImage",
           "lambda:GetMicrovmImage",
+          "lambda:GetMicrovmImageVersion",
           "lambda:ListMicrovmImages",
           "lambda:DeleteMicrovmImage",
           "lambda:RunMicrovm",

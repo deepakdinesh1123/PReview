@@ -81,6 +81,7 @@ Resources:
               - lambda:CreateMicrovmImage
               - lambda:UpdateMicrovmImage
               - lambda:GetMicrovmImage
+              - lambda:GetMicrovmImageVersion
               - lambda:ListMicrovmImages
               - lambda:DeleteMicrovmImage
               - lambda:RunMicrovm
